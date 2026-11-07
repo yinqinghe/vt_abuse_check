@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AbuseIPDB 批量查询</title>
+  <style>
+    :root {
+      --bg-a: #f5f7fb;
+      --bg-b: #e5f0ec;
+      --card: rgba(255, 255, 255, 0.9);
+      --text: #172033;
+      --muted: #64748b;
+      --line: rgba(22, 101, 52, 0.18);
+      --primary: #166534;
+      --primary-strong: #14532d;
+      --danger: #b91c1c;
+      --ok: #15803d;
+      --shadow: 0 24px 58px rgba(15, 23, 42, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 14% 12%, rgba(22, 101, 52, 0.14), transparent 28%),
+        radial-gradient(circle at 86% 78%, rgba(14, 116, 144, 0.12), transparent 30%),
+        linear-gradient(160deg, var(--bg-a), var(--bg-b));
+      padding: 20px;
+    }
+    .wrap { max-width: 1120px; margin: 0 auto; }
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+    h1 { margin: 0; font-size: clamp(28px, 4vw, 42px); }
+    .links { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; }
+    .links a { color: #0e7490; font-weight: 700; text-decoration: none; font-size: 14px; }
+    .sub { margin-top: 10px; color: var(--muted); line-height: 1.65; font-size: 14px; }
+    .actions {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1fr 150px 170px;
+      gap: 10px;
+    }
+    input[type="file"], input[type="number"], button {
+      min-height: 50px;
+      border-radius: 14px;
+      font-size: 15px;
+    }
+    input[type="file"], input[type="number"] {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.94);
+      padding: 10px 12px;
+      color: var(--text);
+      width: 100%;
+    }
+    button {
+      border: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      cursor: pointer;
+      color: #fff;
+      background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+      box-shadow: 0 12px 24px rgba(22, 101, 52, 0.22);
+    }
+    button:disabled { opacity: 0.66; cursor: wait; transform: none; }
+    .meta {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .metric {
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.8);
+      padding: 12px 14px;
+    }
+    .metric strong { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .metric span { font-size: 22px; font-weight: 700; }
+    .progress {
+      margin-top: 14px;
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: rgba(148, 163, 184, 0.2);
+    }
+    .progress > i {
+      display: block;
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #166534, #0e7490);
+      transition: width 0.18s ease;
+    }
+    .status { margin-top: 10px; font-size: 14px; color: var(--muted); min-height: 24px; line-height: 1.6; }
+    .status.error { color: var(--danger); font-weight: 700; }
+    .status.ok { color: var(--ok); font-weight: 700; }
+    .preview {
+      margin-top: 18px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      overflow: auto;
+      max-height: 320px;
+      background: rgba(255, 255, 255, 0.82);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 980px; }
+    th, td {
+      border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+      padding: 9px 10px;
+      text-align: left;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      max-width: 260px;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: rgba(241, 245, 249, 0.95);
+      z-index: 1;
+      font-size: 12px;
+      color: #334155;
+    }
+    .bottom-actions { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .bottom-actions button { width: auto; min-width: 150px; padding: 0 18px; }
+    @media (max-width: 860px) {
+      body { padding: 12px; }
+      .card { padding: 16px; }
+      .actions, .meta { grid-template-columns: 1fr; }
+      .bottom-actions button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1>AbuseIPDB 批量查询</h1>
+      <div class="links">
+        <a href="/check_vt">VT 单条查询</a>
+        <a href="/batch_check_vt">VT 批量查询</a>
+        <a href="/check_abuseip">AbuseIPDB 单条查询</a>
+        <a href="/batch_check_abuseip">AbuseIPDB 批量查询</a>
+        <a href="/check_combined">综合查询</a>
+      </div>
+      <p class="sub">
+        上传 .xlsx 后按 IP 行查询 AbuseIPDB。输出列会自动补齐，已存在 Abuse_confidence_score 的行会跳过；运行中可暂停、保存并下载当前结果。
+      </p>
+
+      <div class="actions">
+        <input id="fileInput" type="file" accept=".xlsx,.xlsm,.xls" />
+        <input id="maxAgeInput" type="number" min="1" max="365" value="90" title="maxAgeInDays" />
+        <button id="runBtn" type="button">开始批量查询</button>
+      </div>
+
+      <div class="meta">
+        <div class="metric"><strong>有效行数</strong><span id="totalCount">0</span></div>
+        <div class="metric"><strong>已完成</strong><span id="doneCount">0</span></div>
+        <div class="metric"><strong>跳过</strong><span id="skipCount">0</span></div>
+        <div class="metric"><strong>成功</strong><span id="okCount">0</span></div>
+        <div class="metric"><strong>失败</strong><span id="errorCount">0</span></div>
+      </div>
+
+      <div class="progress"><i id="progressBar"></i></div>
+      <div id="status" class="status">请选择文件后开始。</div>
+
+      <div class="preview">
+        <table>
+          <thead><tr id="tableHead"></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="bottom-actions">
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="downloadBtn" type="button" disabled>下载结果 xlsx</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    window.va = window.va || function () {
+      (window.vaq = window.vaq || []).push(arguments);
+    };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const maxAgeInput = document.getElementById("maxAgeInput");
+    const runBtn = document.getElementById("runBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const statusEl = document.getElementById("status");
+    const progressBar = document.getElementById("progressBar");
+    const totalCountEl = document.getElementById("totalCount");
+    const doneCountEl = document.getElementById("doneCount");
+    const skipCountEl = document.getElementById("skipCount");
+    const okCountEl = document.getElementById("okCount");
+    const errorCountEl = document.getElementById("errorCount");
+    const tableHead = document.getElementById("tableHead");
+    const tableBody = document.getElementById("tableBody");
+
+    const CHECKPOINT_DB = "abuseipdb_batch_checkpoints";
+    const CHECKPOINT_STORE = "runs";
+    const CHECKPOINT_VERSION = 1;
+    const CHECKPOINT_SAVE_INTERVAL = 1500;
+    const UI_UPDATE_INTERVAL = 250;
+    const OUTPUT_COLUMNS = [
+      "Abuse_confidence_score",
+      "Abuse_country_code",
+      "Abuse_country_name",
+      "Abuse_usage_type",
+      "Abuse_isp",
+      "Abuse_domain",
+      "Abuse_total_reports",
+      "Abuse_num_distinct_users",
+      "Abuse_last_reported_at",
+      "Abuse_is_tor",
+      "Abuse_is_whitelisted",
+      "Abuse_latest_report_comment",
+    ];
+
+    let workbook = null;
+    let sheetName = "";
+    let rows = [];
+    let colIndex = null;
+    let selectedFileKey = "";
+    let selectedFileName = "";
+    let lastCheckpointSave = 0;
+    let lastUiUpdate = 0;
+    let pendingPreviewRender = false;
+    let isRunning = false;
+    let pauseRequested = false;
+
+    function setStatus(text, type = "normal") {
+      statusEl.textContent = text;
+      statusEl.className = "status";
+      if (type === "error") statusEl.classList.add("error");
+      if (type === "ok") statusEl.classList.add("ok");
+    }
+
+    function resetProgress(total = 0) {
+      updateProgress(0, total, 0, 0, 0);
+    }
+
+    function updateProgress(done, total, ok, skipped = 0, failed = 0) {
+      doneCountEl.textContent = String(done);
+      skipCountEl.textContent = String(skipped);
+      okCountEl.textContent = String(ok);
+      errorCountEl.textContent = String(failed);
+      totalCountEl.textContent = String(total);
+      progressBar.style.width = total ? `${((done / total) * 100).toFixed(1)}%` : "0%";
+    }
+
+    function getColumnIndex(header, aliases, fallbackIndex = -1) {
+      const normalizedHeader = header.map((v) => String(v || "").trim().toLowerCase().replace(/\s+/g, ""));
+      for (const alias of aliases) {
+        const idx = normalizedHeader.indexOf(alias.toLowerCase().replace(/\s+/g, ""));
+        if (idx >= 0) return idx;
+      }
+      if (fallbackIndex >= 0 && fallbackIndex < header.length) return fallbackIndex;
+      return -1;
+    }
+
+    function makeColumnMapForRows(sourceRows) {
+      const header = (sourceRows[0] || []).map((v) => String(v || "").trim());
+      const map = {
+        IP: getColumnIndex(header, ["IP", "ip", "ipAddress", "ip_address", "IOC", "indicator"], 0),
+      };
+      for (const name of OUTPUT_COLUMNS) map[name] = header.indexOf(name);
+      return map;
+    }
+
+    function ensureOutputColumns() {
+      const header = rows[0].map((v) => String(v || "").trim());
+      function ensureCol(name) {
+        let idx = header.indexOf(name);
+        if (idx >= 0) return idx;
+        header.push(name);
+        idx = header.length - 1;
+        for (let i = 1; i < rows.length; i++) {
+          if (!Array.isArray(rows[i])) rows[i] = [];
+          while (rows[i].length <= idx) rows[i].push("");
+        }
+        return idx;
+      }
+
+      rows[0] = header;
+      const map = {
+        IP: getColumnIndex(header, ["IP", "ip", "ipAddress", "ip_address", "IOC", "indicator"], 0),
+      };
+      for (const name of OUTPUT_COLUMNS) map[name] = ensureCol(name);
+      return map;
+    }
+
+    function validateTemplate() {
+      if (!rows.length || !rows[0]) throw new Error("空表格，无法处理");
+      colIndex = ensureOutputColumns();
+      if (colIndex.IP < 0) throw new Error("未识别到 IP 列，请检查表头（如 IP/ipAddress/IOC）");
+    }
+
+    function hasAbuseScore(row) {
+      return String(row[colIndex.Abuse_confidence_score] ?? "").trim() !== "";
+    }
+
+    function makeFileKey(file) {
+      return `${file.name}:${file.size}:${file.lastModified}`;
+    }
+
+    function openCheckpointDb() {
+      return new Promise((resolve, reject) => {
+        if (!("indexedDB" in window)) {
+          reject(new Error("IndexedDB unavailable"));
+          return;
+        }
+        const request = indexedDB.open(CHECKPOINT_DB, CHECKPOINT_VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(CHECKPOINT_STORE)) {
+            db.createObjectStore(CHECKPOINT_STORE, { keyPath: "fileKey" });
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("open IndexedDB failed"));
+      });
+    }
+
+    async function readCheckpoint(fileKey) {
+      try {
+        const db = await openCheckpointDb();
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction(CHECKPOINT_STORE, "readonly");
+          const req = tx.objectStore(CHECKPOINT_STORE).get(fileKey);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error || new Error("read checkpoint failed"));
+          tx.oncomplete = () => db.close();
+        });
+      } catch (err) {
+        console.warn("checkpoint read skipped", err);
+        return null;
+      }
+    }
+
+    async function writeCheckpoint(force = false) {
+      if (!selectedFileKey || !rows.length || !sheetName) return;
+      const now = Date.now();
+      if (!force && now - lastCheckpointSave < CHECKPOINT_SAVE_INTERVAL) return;
+      lastCheckpointSave = now;
+      try {
+        const db = await openCheckpointDb();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(CHECKPOINT_STORE, "readwrite");
+          tx.objectStore(CHECKPOINT_STORE).put({
+            fileKey: selectedFileKey,
+            fileName: selectedFileName,
+            sheetName,
+            rows,
+            updatedAt: now,
+          });
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => {
+            db.close();
+            reject(tx.error || new Error("write checkpoint failed"));
+          };
+        });
+      } catch (err) {
+        console.warn("checkpoint save skipped", err);
+      }
+    }
+
+    function mergeCheckpointRows(checkpoint) {
+      if (!checkpoint || !Array.isArray(checkpoint.rows) || checkpoint.rows.length < 2) return 0;
+      const checkpointMap = makeColumnMapForRows(checkpoint.rows);
+      if (checkpointMap.IP < 0 || checkpointMap.Abuse_confidence_score < 0) return 0;
+
+      const restoredByIp = new Map();
+      for (let i = 1; i < checkpoint.rows.length; i++) {
+        const row = checkpoint.rows[i] || [];
+        const ip = String(row[checkpointMap.IP] || "").trim();
+        const score = String(row[checkpointMap.Abuse_confidence_score] ?? "").trim();
+        if (ip && score) restoredByIp.set(ip, row);
+      }
+
+      let restored = 0;
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i] || [];
+        const ip = String(row[colIndex.IP] || "").trim();
+        if (!ip || hasAbuseScore(row)) continue;
+        const savedRow = restoredByIp.get(ip);
+        if (!savedRow) continue;
+        for (const name of OUTPUT_COLUMNS) {
+          const sourceIdx = checkpointMap[name];
+          const targetIdx = colIndex[name];
+          if (sourceIdx >= 0 && targetIdx >= 0) row[targetIdx] = savedRow[sourceIdx] ?? "";
+        }
+        restored += 1;
+      }
+      return restored;
+    }
+
+    function renderPreview(maxRows = 30) {
+      tableHead.innerHTML = "";
+      tableBody.innerHTML = "";
+      if (!rows.length) return;
+      rows[0].forEach((cell) => {
+        const th = document.createElement("th");
+        th.textContent = String(cell ?? "");
+        tableHead.appendChild(th);
+      });
+      for (let i = 1; i < Math.min(rows.length, maxRows + 1); i++) {
+        const tr = document.createElement("tr");
+        rows[i].forEach((cell) => {
+          const td = document.createElement("td");
+          td.textContent = cell == null ? "" : String(cell);
+          tr.appendChild(td);
+        });
+        tableBody.appendChild(tr);
+      }
+    }
+
+    function schedulePreviewRender() {
+      if (pendingPreviewRender) return;
+      pendingPreviewRender = true;
+      requestAnimationFrame(() => {
+        pendingPreviewRender = false;
+        renderPreview();
+      });
+    }
+
+    function maybeUpdateRunningUi(done, total, ok, skipped, failed, force = false) {
+      const now = Date.now();
+      if (!force && now - lastUiUpdate < UI_UPDATE_INTERVAL) return;
+      lastUiUpdate = now;
+      updateProgress(done, total, ok, skipped, failed);
+      const prefix = pauseRequested ? "正在暂停" : "查询中";
+      setStatus(`${prefix}... ${done}/${total}（跳过 ${skipped}，成功 ${ok}，失败 ${failed}）`);
+      schedulePreviewRender();
+    }
+
+    async function queryOne(ip) {
+      const params = new URLSearchParams({ ip, maxAgeInDays: maxAgeInput.value || "90" });
+      const response = await fetch(`/api/check_abuseip?${params.toString()}`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    }
+
+    function writeRow(row, data) {
+      row[colIndex.Abuse_confidence_score] = data.abuse_confidence_score ?? "";
+      row[colIndex.Abuse_country_code] = data.country_code ?? "";
+      row[colIndex.Abuse_country_name] = data.country_name ?? "";
+      row[colIndex.Abuse_usage_type] = data.usage_type ?? "";
+      row[colIndex.Abuse_isp] = data.isp ?? "";
+      row[colIndex.Abuse_domain] = data.domain ?? "";
+      row[colIndex.Abuse_total_reports] = data.total_reports ?? "";
+      row[colIndex.Abuse_num_distinct_users] = data.num_distinct_users ?? "";
+      row[colIndex.Abuse_last_reported_at] = data.last_reported_at ?? "";
+      row[colIndex.Abuse_is_tor] = data.is_tor ? "Y" : "N";
+      row[colIndex.Abuse_is_whitelisted] = data.is_whitelisted ? "Y" : "N";
+      row[colIndex.Abuse_latest_report_comment] = data.latest_report_comment ?? "";
+    }
+
+    async function runBatch() {
+      if (!rows.length) {
+        setStatus("请先上传 xlsx 文件", "error");
+        return;
+      }
+
+      const dataRows = [];
+      let skipped = 0;
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const ip = String(row[colIndex.IP] || "").trim();
+        if (!ip) continue;
+        if (hasAbuseScore(row)) {
+          skipped += 1;
+          continue;
+        }
+        dataRows.push({ row, ip });
+      }
+
+      const total = dataRows.length + skipped;
+      if (!total) {
+        setStatus("没有可查询的有效 IP 行", "error");
+        return;
+      }
+      if (!dataRows.length) {
+        updateProgress(skipped, total, 0, skipped, 0);
+        downloadBtn.disabled = false;
+        await writeCheckpoint(true);
+        setStatus(`无需查询：${skipped} 行已有 Abuse_confidence_score，已全部跳过。`, "ok");
+        return;
+      }
+
+      let done = skipped;
+      let ok = 0;
+      let failed = 0;
+      let cursor = 0;
+      const concurrency = 3;
+
+      updateProgress(done, total, ok, skipped, failed);
+      runBtn.disabled = true;
+      fileInput.disabled = true;
+      maxAgeInput.disabled = true;
+      pauseBtn.disabled = false;
+      downloadBtn.disabled = true;
+      isRunning = true;
+      pauseRequested = false;
+      setStatus(`开始查询，有效 ${total} 行，跳过 ${skipped} 行，待查 ${dataRows.length} 行...`);
+
+      async function worker() {
+        while (cursor < dataRows.length && !pauseRequested) {
+          const current = dataRows[cursor++];
+          try {
+            const data = await queryOne(current.ip);
+            writeRow(current.row, data);
+            ok += 1;
+          } catch (err) {
+            current.row[colIndex.Abuse_confidence_score] = "";
+            current.row[colIndex.Abuse_latest_report_comment] = String(err.message || "query failed").slice(0, 240);
+            failed += 1;
+          } finally {
+            done += 1;
+            maybeUpdateRunningUi(done, total, ok, skipped, failed, done === total);
+            writeCheckpoint(done === total);
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
+        }
+      }
+
+      await Promise.all(Array.from({ length: Math.min(concurrency, dataRows.length) }, worker));
+      isRunning = false;
+      runBtn.disabled = false;
+      fileInput.disabled = false;
+      maxAgeInput.disabled = false;
+      pauseBtn.disabled = true;
+      downloadBtn.disabled = false;
+      await writeCheckpoint(true);
+      updateProgress(done, total, ok, skipped, failed);
+      renderPreview();
+      if (pauseRequested && done < total) {
+        setStatus(`已暂停：有效 ${total}，已完成 ${done}，跳过 ${skipped}，成功 ${ok}，失败 ${failed}。当前结果已保存，可以下载。`);
+      } else {
+        setStatus(`查询完成：有效 ${total}，跳过 ${skipped}，成功 ${ok}，失败 ${failed}`, failed ? "error" : "ok");
+      }
+    }
+
+    fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files && event.target.files[0];
+      workbook = null;
+      rows = [];
+      sheetName = "";
+      colIndex = null;
+      selectedFileKey = "";
+      selectedFileName = "";
+      isRunning = false;
+      pauseRequested = false;
+      pauseBtn.disabled = true;
+      downloadBtn.disabled = true;
+      resetProgress(0);
+      tableHead.innerHTML = "";
+      tableBody.innerHTML = "";
+
+      if (!file) {
+        setStatus("请选择文件后开始。");
+        return;
+      }
+
+      try {
+        selectedFileKey = makeFileKey(file);
+        selectedFileName = file.name;
+        const buf = await file.arrayBuffer();
+        workbook = XLSX.read(buf, { type: "array" });
+        sheetName = workbook.SheetNames[0];
+        rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1, defval: "" });
+        validateTemplate();
+        const restored = mergeCheckpointRows(await readCheckpoint(selectedFileKey));
+        renderPreview();
+        const validRows = rows.slice(1).filter((row) => String(row[colIndex.IP] || "").trim()).length;
+        const completedRows = rows.slice(1).filter((row) => String(row[colIndex.IP] || "").trim() && hasAbuseScore(row)).length;
+        updateProgress(completedRows, validRows, 0, completedRows, 0);
+        downloadBtn.disabled = false;
+        setStatus(`已加载 ${file.name}，有效 ${validRows} 行，已有 Abuse_confidence_score ${completedRows} 行${restored ? `，从上次运行恢复 ${restored} 行` : ""}。`);
+      } catch (err) {
+        setStatus(`文件读取失败：${err.message || err}`, "error");
+      }
+    });
+
+    runBtn.addEventListener("click", runBatch);
+    pauseBtn.addEventListener("click", async () => {
+      if (!isRunning) return;
+      pauseRequested = true;
+      pauseBtn.disabled = true;
+      await writeCheckpoint(true);
+      setStatus("正在暂停... 当前已发出的请求完成后即可下载结果。");
+    });
+
+    downloadBtn.addEventListener("click", () => {
+      if (!rows.length || !sheetName || !workbook) {
+        setStatus("没有可下载的数据", "error");
+        return;
+      }
+      workbook.Sheets[sheetName] = XLSX.utils.aoa_to_sheet(rows);
+      const now = new Date();
+      const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+      XLSX.writeFile(workbook, `abuseipdb_result_${stamp}.xlsx`);
+      writeCheckpoint(true);
+      setStatus("结果文件已生成并开始下载。", "ok");
+    });
+
+    resetProgress(0);
+  </script>
+</body>
+</html>

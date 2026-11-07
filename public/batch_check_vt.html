@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VT 批量查询</title>
+  <style>
+    :root {
+      --bg-a: #f6efe4;
+      --bg-b: #d8e7f4;
+      --card: rgba(255, 255, 255, 0.9);
+      --text: #0f172a;
+      --muted: #475569;
+      --line: rgba(14, 116, 144, 0.2);
+      --primary: #0f766e;
+      --primary-strong: #115e59;
+      --danger: #b91c1c;
+      --ok: #15803d;
+      --shadow: 0 24px 58px rgba(15, 23, 42, 0.13);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 18% 14%, rgba(15, 118, 110, 0.2), transparent 30%),
+        radial-gradient(circle at 85% 82%, rgba(14, 116, 144, 0.22), transparent 31%),
+        linear-gradient(160deg, var(--bg-a), var(--bg-b));
+      padding: 20px;
+    }
+
+    .wrap { max-width: 1080px; margin: 0 auto; }
+    .card {
+      background: var(--card);
+      border: 1px solid rgba(255, 255, 255, 0.75);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(14px);
+      padding: 24px;
+    }
+
+    h1 { margin: 0; font-size: clamp(28px, 4vw, 42px); letter-spacing: -0.02em; }
+    .links {
+      margin-top: 10px;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .links a {
+      color: #0e7490;
+      font-weight: 700;
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .sub { margin-top: 10px; color: var(--muted); line-height: 1.65; font-size: 14px; }
+
+    .actions {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1fr 170px 170px;
+      gap: 10px;
+    }
+
+    input[type="file"], button, a.btn {
+      min-height: 50px;
+      border-radius: 14px;
+      font-size: 15px;
+    }
+
+    input[type="file"] {
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.94);
+      padding: 10px 12px;
+      color: var(--text);
+      width: 100%;
+    }
+
+    button, a.btn {
+      border: none;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      cursor: pointer;
+      color: #fff;
+      background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.24);
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    a.btn {
+      background: linear-gradient(135deg, #0e7490, #0369a1);
+      box-shadow: 0 12px 24px rgba(14, 116, 144, 0.26);
+    }
+    button:hover, a.btn:hover { transform: translateY(-1px); }
+    button:disabled { opacity: 0.66; cursor: wait; transform: none; }
+
+    .meta {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .metric {
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.8);
+      padding: 12px 14px;
+    }
+    .metric strong { display: block; color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+    .metric span { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+
+    .progress {
+      margin-top: 14px;
+      width: 100%;
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      background: rgba(148, 163, 184, 0.2);
+    }
+    .progress > i {
+      display: block;
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #0f766e, #0369a1);
+      transition: width 0.18s ease;
+    }
+
+    .status {
+      margin-top: 10px;
+      font-size: 14px;
+      color: var(--muted);
+      min-height: 24px;
+      line-height: 1.6;
+    }
+    .status.error { color: var(--danger); font-weight: 700; }
+    .status.ok { color: var(--ok); font-weight: 700; }
+
+    .preview {
+      margin-top: 18px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      overflow: auto;
+      max-height: 320px;
+      background: rgba(255, 255, 255, 0.82);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      min-width: 860px;
+    }
+    th, td {
+      border-bottom: 1px solid rgba(148, 163, 184, 0.3);
+      padding: 9px 10px;
+      text-align: left;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+      max-width: 280px;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: rgba(241, 245, 249, 0.95);
+      z-index: 1;
+      font-size: 12px;
+      color: #334155;
+    }
+
+    @media (max-width: 840px) {
+      .actions, .meta { grid-template-columns: 1fr; }
+      body { padding: 12px; }
+      .card { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="card">
+      <h1>VirusTotal 批量查询</h1>
+      <div class="links">
+        <a href="/check_vt">VT 单条查询</a>
+        <a href="/batch_check_vt">VT 批量查询</a>
+        <a href="/check_abuseip">AbuseIPDB 单条查询</a>
+        <a href="/batch_check_abuseip">AbuseIPDB 批量查询</a>
+        <a href="/check_combined">综合查询</a>
+      </div>
+      <p class="sub">
+        上传 <code>.xlsx</code> 文件后按行查询，实时显示进度，并导出结果表。
+        默认按模板列写回：IOC / 类型 / SHA256 / VT_reputation / VT_Sign / VT_Sign_info / Autonomous_System_Label。
+      </p>
+
+      <div class="actions">
+        <input id="fileInput" type="file" accept=".xlsx,.xlsm,.xls" />
+        <button id="runBtn" type="button">开始批量查询</button>
+        <a class="btn" href="/vt_example.xlsx" download>下载模板</a>
+      </div>
+
+      <div class="meta">
+        <div class="metric"><strong>总行数</strong><span id="totalCount">0</span></div>
+        <div class="metric"><strong>已完成</strong><span id="doneCount">0</span></div>
+        <div class="metric"><strong>跳过</strong><span id="skipCount">0</span></div>
+        <div class="metric"><strong>成功</strong><span id="okCount">0</span></div>
+        <div class="metric"><strong>失败</strong><span id="errorCount">0</span></div>
+      </div>
+
+      <div class="progress"><i id="progressBar"></i></div>
+      <div id="status" class="status">请选择文件后开始。</div>
+
+      <div class="preview">
+        <table>
+          <thead><tr id="tableHead"></tr></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div style="margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap;">
+        <button id="pauseBtn" type="button" disabled>暂停</button>
+        <button id="downloadBtn" type="button" disabled>下载结果 xlsx</button>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    window.va = window.va || function () {
+      (window.vaq = window.vaq || []).push(arguments);
+    };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script>
+    const fileInput = document.getElementById("fileInput");
+    const runBtn = document.getElementById("runBtn");
+    const pauseBtn = document.getElementById("pauseBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const statusEl = document.getElementById("status");
+    const progressBar = document.getElementById("progressBar");
+    const totalCountEl = document.getElementById("totalCount");
+    const doneCountEl = document.getElementById("doneCount");
+    const skipCountEl = document.getElementById("skipCount");
+    const okCountEl = document.getElementById("okCount");
+    const errorCountEl = document.getElementById("errorCount");
+    const tableHead = document.getElementById("tableHead");
+    const tableBody = document.getElementById("tableBody");
+
+    const CHECKPOINT_DB = "vt_batch_checkpoints";
+    const CHECKPOINT_STORE = "runs";
+    const CHECKPOINT_VERSION = 1;
+    const CHECKPOINT_SAVE_INTERVAL = 1500;
+    const UI_UPDATE_INTERVAL = 250;
+
+    let workbook = null;
+    let sheetName = "";
+    let rows = [];
+    let colIndex = null;
+    let selectedFileKey = "";
+    let selectedFileName = "";
+    let lastCheckpointSave = 0;
+    let lastUiUpdate = 0;
+    let pendingPreviewRender = false;
+    let isRunning = false;
+    let pauseRequested = false;
+
+    function setStatus(text, type = "normal") {
+      statusEl.textContent = text;
+      statusEl.className = "status";
+      if (type === "error") statusEl.classList.add("error");
+      if (type === "ok") statusEl.classList.add("ok");
+    }
+
+    function resetProgress(total = 0) {
+      totalCountEl.textContent = String(total);
+      doneCountEl.textContent = "0";
+      skipCountEl.textContent = "0";
+      okCountEl.textContent = "0";
+      errorCountEl.textContent = "0";
+      progressBar.style.width = "0%";
+    }
+
+    function updateProgress(done, total, ok, skipped = 0, failed = 0) {
+      doneCountEl.textContent = String(done);
+      skipCountEl.textContent = String(skipped);
+      okCountEl.textContent = String(ok);
+      errorCountEl.textContent = String(failed);
+      totalCountEl.textContent = String(total);
+      progressBar.style.width = total ? `${((done / total) * 100).toFixed(1)}%` : "0%";
+    }
+
+    function getColumnIndex(header, aliases, fallbackIndex = -1) {
+      const normalizedHeader = header.map((v) => String(v || "").trim().toLowerCase().replace(/\s+/g, ""));
+      for (const alias of aliases) {
+        const normalized = alias.toLowerCase().replace(/\s+/g, "");
+        const idx = normalizedHeader.indexOf(normalized);
+        if (idx >= 0) return idx;
+      }
+      if (fallbackIndex >= 0 && fallbackIndex < header.length) return fallbackIndex;
+      return -1;
+    }
+
+    function makeColumnMapForRows(sourceRows) {
+      const header = (sourceRows[0] || []).map((v) => String(v || "").trim());
+      return {
+        IOC: getColumnIndex(header, ["IOC", "IOC值", "indicator", "indicator_of_compromise", "ioc_value"], 0),
+        TYPE: getColumnIndex(header, ["类型", "type", "ioc_type", "ioctype", "indicator_type"], 1),
+        SHA256: getColumnIndex(header, ["SHA256", "sha-256", "sha_256"], 2),
+        VT_reputation: header.indexOf("VT_reputation"),
+        VT_Sign: header.indexOf("VT_Sign"),
+        VT_Sign_info: header.indexOf("VT_Sign_info"),
+        Autonomous_System_Label: header.indexOf("Autonomous_System_Label"),
+      };
+    }
+
+    function makeFileKey(file) {
+      return `${file.name}:${file.size}:${file.lastModified}`;
+    }
+
+    function openCheckpointDb() {
+      return new Promise((resolve, reject) => {
+        if (!("indexedDB" in window)) {
+          reject(new Error("IndexedDB unavailable"));
+          return;
+        }
+
+        const request = indexedDB.open(CHECKPOINT_DB, CHECKPOINT_VERSION);
+        request.onupgradeneeded = () => {
+          const db = request.result;
+          if (!db.objectStoreNames.contains(CHECKPOINT_STORE)) {
+            db.createObjectStore(CHECKPOINT_STORE, { keyPath: "fileKey" });
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error || new Error("open IndexedDB failed"));
+      });
+    }
+
+    async function readCheckpoint(fileKey) {
+      try {
+        const db = await openCheckpointDb();
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction(CHECKPOINT_STORE, "readonly");
+          const req = tx.objectStore(CHECKPOINT_STORE).get(fileKey);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => reject(req.error || new Error("read checkpoint failed"));
+          tx.oncomplete = () => db.close();
+        });
+      } catch (err) {
+        console.warn("checkpoint read skipped", err);
+        return null;
+      }
+    }
+
+    async function writeCheckpoint(force = false) {
+      if (!selectedFileKey || !rows.length || !sheetName) return;
+
+      const now = Date.now();
+      if (!force && now - lastCheckpointSave < CHECKPOINT_SAVE_INTERVAL) return;
+      lastCheckpointSave = now;
+
+      try {
+        const db = await openCheckpointDb();
+        await new Promise((resolve, reject) => {
+          const tx = db.transaction(CHECKPOINT_STORE, "readwrite");
+          tx.objectStore(CHECKPOINT_STORE).put({
+            fileKey: selectedFileKey,
+            fileName: selectedFileName,
+            sheetName,
+            rows,
+            updatedAt: now,
+          });
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => {
+            db.close();
+            reject(tx.error || new Error("write checkpoint failed"));
+          };
+        });
+      } catch (err) {
+        console.warn("checkpoint save skipped", err);
+      }
+    }
+
+    function mergeCheckpointRows(checkpoint) {
+      if (!checkpoint || !Array.isArray(checkpoint.rows) || checkpoint.rows.length < 2) return 0;
+
+      const checkpointMap = makeColumnMapForRows(checkpoint.rows);
+      if (checkpointMap.IOC < 0 || checkpointMap.VT_reputation < 0) return 0;
+
+      const restoredByKey = new Map();
+      for (let i = 1; i < checkpoint.rows.length; i++) {
+        const row = checkpoint.rows[i] || [];
+        const ioc = String(row[checkpointMap.IOC] || "").trim();
+        const vtReputation = String(row[checkpointMap.VT_reputation] ?? "").trim();
+        if (!ioc || !vtReputation) continue;
+
+        const type = normalizeType(row[checkpointMap.TYPE]);
+        restoredByKey.set(`${ioc}\u0000${type}`, row);
+      }
+
+      let restored = 0;
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i] || [];
+        const ioc = String(row[colIndex.IOC] || "").trim();
+        if (!ioc || hasVtReputation(row)) continue;
+
+        const type = normalizeType(row[colIndex.TYPE]);
+        const savedRow = restoredByKey.get(`${ioc}\u0000${type}`);
+        if (!savedRow) continue;
+
+        for (const name of ["SHA256", "VT_reputation", "VT_Sign", "VT_Sign_info", "Autonomous_System_Label"]) {
+          const sourceIdx = checkpointMap[name];
+          const targetIdx = colIndex[name];
+          if (sourceIdx >= 0 && targetIdx >= 0) row[targetIdx] = savedRow[sourceIdx] ?? "";
+        }
+        restored += 1;
+      }
+
+      return restored;
+    }
+
+    function renderPreview(maxRows = 30) {
+      tableHead.innerHTML = "";
+      tableBody.innerHTML = "";
+      if (!rows.length) return;
+
+      rows[0].forEach((cell) => {
+        const th = document.createElement("th");
+        th.textContent = String(cell ?? "");
+        tableHead.appendChild(th);
+      });
+
+      for (let i = 1; i < Math.min(rows.length, maxRows + 1); i++) {
+        const tr = document.createElement("tr");
+        rows[i].forEach((cell) => {
+          const td = document.createElement("td");
+          td.textContent = cell == null ? "" : String(cell);
+          tr.appendChild(td);
+        });
+        tableBody.appendChild(tr);
+      }
+    }
+
+    function ensureOutputColumns() {
+      const header = rows[0].map((v) => String(v || "").trim());
+      const outputCols = ["VT_reputation", "VT_Sign", "VT_Sign_info", "Autonomous_System_Label"];
+      const normalizedHeader = header.map((v) => v.toLowerCase().replace(/\s+/g, ""));
+
+      function findByAliases(aliases, fallbackIndex = -1) {
+        for (const alias of aliases) {
+          const normalized = alias.toLowerCase().replace(/\s+/g, "");
+          const idx = normalizedHeader.indexOf(normalized);
+          if (idx >= 0) return idx;
+        }
+        if (fallbackIndex >= 0 && fallbackIndex < header.length) return fallbackIndex;
+        return -1;
+      }
+
+      function ensureCol(name) {
+        let idx = header.indexOf(name);
+        if (idx >= 0) return idx;
+
+        header.push(name);
+        idx = header.length - 1;
+        for (let i = 1; i < rows.length; i++) {
+          if (!Array.isArray(rows[i])) rows[i] = [];
+          while (rows[i].length <= idx) rows[i].push("");
+        }
+        return idx;
+      }
+
+      rows[0] = header;
+      const map = {
+        IOC: findByAliases(["IOC", "IOC值", "indicator", "indicator_of_compromise", "ioc_value"], 0),
+        TYPE: findByAliases(["类型", "type", "ioc_type", "ioctype", "indicator_type"], 1),
+        SHA256: findByAliases(["SHA256", "sha-256", "sha_256"], 2),
+      };
+      for (const name of outputCols) {
+        map[name] = ensureCol(name);
+      }
+      return map;
+    }
+
+    function validateTemplate() {
+      if (!rows.length || !rows[0]) throw new Error("空表格，无法处理");
+      const header = rows[0].map((v) => String(v || "").trim());
+      if (header.length < 3) throw new Error("模板列数不足，至少需要前 3 列（IOC/类型/SHA256）");
+      colIndex = ensureOutputColumns();
+      if (colIndex.IOC < 0) throw new Error("未识别到 IOC 列，请检查表头（如 IOC/IOC值/indicator）");
+      if (colIndex.TYPE < 0) throw new Error("未识别到类型列，请检查表头（如 类型/type/ioc_type）");
+      if (colIndex.SHA256 < 0) throw new Error("未识别到 SHA256 列，请检查表头（如 SHA256）");
+    }
+
+    function normalizeType(rawType) {
+      const type = String(rawType || "").trim();
+      if (!type) return "";
+      const upper = type.toUpperCase();
+      if (upper === "DOMAIN" || upper === "DOMIAN") return "Domain";
+      if (upper === "IP") return "IP";
+      if (upper === "URL") return "URL";
+      if (["HASH", "MD5", "SHA1", "SHA256"].includes(upper)) return "Hash";
+      return type;
+    }
+
+    function hasVtReputation(row) {
+      return String(row[colIndex.VT_reputation] ?? "").trim() !== "";
+    }
+
+    async function queryOne(ioc, type) {
+      const params = new URLSearchParams({ ioc });
+      if (type) params.set("type", type);
+      const response = await fetch(`/api/check_vt?${params.toString()}`);
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+      return data;
+    }
+
+    function writeRow(row, data) {
+      if (!row[colIndex.SHA256] && data.sha256) row[colIndex.SHA256] = data.sha256;
+      if ("vt_reputation" in data) row[colIndex.VT_reputation] = data.vt_reputation ?? "";
+      if ("vt_sign" in data) row[colIndex.VT_Sign] = data.vt_sign ?? "N";
+      if ("vt_sign_info" in data) row[colIndex.VT_Sign_info] = data.vt_sign_info ?? "N";
+      if ("autonomous_system_label" in data) {
+        row[colIndex.Autonomous_System_Label] = data.autonomous_system_label ?? "";
+      }
+    }
+
+    function schedulePreviewRender() {
+      if (pendingPreviewRender) return;
+      pendingPreviewRender = true;
+      requestAnimationFrame(() => {
+        pendingPreviewRender = false;
+        renderPreview();
+      });
+    }
+
+    function maybeUpdateRunningUi(done, total, ok, skipped, failed, force = false) {
+      const now = Date.now();
+      if (!force && now - lastUiUpdate < UI_UPDATE_INTERVAL) return;
+      lastUiUpdate = now;
+      updateProgress(done, total, ok, skipped, failed);
+      const prefix = pauseRequested ? "正在暂停" : "查询中";
+      setStatus(`${prefix}... ${done}/${total}（跳过 ${skipped}，成功 ${ok}，失败 ${failed}）`);
+      schedulePreviewRender();
+    }
+
+    async function runBatch() {
+      if (!rows.length) {
+        setStatus("请先上传 xlsx 文件", "error");
+        return;
+      }
+
+      const dataRows = [];
+      let skipped = 0;
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i];
+        const ioc = String(row[colIndex.IOC] || "").trim();
+        if (!ioc) continue;
+        if (hasVtReputation(row)) {
+          skipped += 1;
+          continue;
+        }
+        dataRows.push({ row, ioc, type: normalizeType(row[colIndex.TYPE]) });
+      }
+
+      const total = dataRows.length + skipped;
+      if (!total) {
+        setStatus("没有可查询的有效 IOC 行", "error");
+        return;
+      }
+
+      if (!dataRows.length) {
+        updateProgress(skipped, total, 0, skipped, 0);
+        downloadBtn.disabled = false;
+        await writeCheckpoint(true);
+        setStatus(`无需查询：${skipped} 行已有 VT_reputation，已全部跳过。`, "ok");
+        return;
+      }
+
+      let done = skipped;
+      let ok = 0;
+      let failed = 0;
+      updateProgress(done, total, ok, skipped, failed);
+      runBtn.disabled = true;
+      fileInput.disabled = true;
+      pauseBtn.disabled = false;
+      downloadBtn.disabled = true;
+      isRunning = true;
+      pauseRequested = false;
+      setStatus(`开始查询，有效 ${total} 行，跳过 ${skipped} 行，待查 ${dataRows.length} 行...`);
+
+      const concurrency = 3;
+      let cursor = 0;
+
+      async function worker() {
+        while (cursor < dataRows.length && !pauseRequested) {
+          const current = dataRows[cursor++];
+          try {
+            const data = await queryOne(current.ioc, current.type);
+            writeRow(current.row, data);
+            ok += 1;
+          } catch (err) {
+            current.row[colIndex.VT_Sign] = "ERROR";
+            current.row[colIndex.VT_Sign_info] = String(err.message || "query failed").slice(0, 240);
+            failed += 1;
+          } finally {
+            done += 1;
+            maybeUpdateRunningUi(done, total, ok, skipped, failed, done === total);
+            writeCheckpoint(done === total);
+            await new Promise((resolve) => setTimeout(resolve, 0));
+          }
+        }
+      }
+
+      await Promise.all(Array.from({ length: Math.min(concurrency, dataRows.length) }, worker));
+      isRunning = false;
+      runBtn.disabled = false;
+      fileInput.disabled = false;
+      pauseBtn.disabled = true;
+      downloadBtn.disabled = false;
+      await writeCheckpoint(true);
+      updateProgress(done, total, ok, skipped, failed);
+      renderPreview();
+      if (pauseRequested && done < total) {
+        setStatus(`已暂停：有效 ${total}，已完成 ${done}，跳过 ${skipped}，成功 ${ok}，失败 ${failed}。当前结果已保存，可以下载。`);
+      } else {
+        setStatus(`查询完成：有效 ${total}，跳过 ${skipped}，成功 ${ok}，失败 ${failed}`, failed ? "error" : "ok");
+      }
+    }
+
+    fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files && event.target.files[0];
+      workbook = null;
+      rows = [];
+      sheetName = "";
+      colIndex = null;
+      selectedFileKey = "";
+      selectedFileName = "";
+      isRunning = false;
+      pauseRequested = false;
+      pauseBtn.disabled = true;
+      downloadBtn.disabled = true;
+      resetProgress(0);
+      tableHead.innerHTML = "";
+      tableBody.innerHTML = "";
+
+      if (!file) {
+        setStatus("请选择文件后开始。");
+        return;
+      }
+
+      try {
+        selectedFileKey = makeFileKey(file);
+        selectedFileName = file.name;
+        const buf = await file.arrayBuffer();
+        workbook = XLSX.read(buf, { type: "array" });
+        sheetName = workbook.SheetNames[0];
+        const ws = workbook.Sheets[sheetName];
+        rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+        validateTemplate();
+        const restored = mergeCheckpointRows(await readCheckpoint(selectedFileKey));
+        renderPreview();
+        const validRows = rows.slice(1).filter((row) => String(row[colIndex.IOC] || "").trim()).length;
+        const completedRows = rows.slice(1).filter((row) => String(row[colIndex.IOC] || "").trim() && hasVtReputation(row)).length;
+        updateProgress(completedRows, validRows, 0, completedRows, 0);
+        downloadBtn.disabled = false;
+        setStatus(`已加载 ${file.name}，有效 ${validRows} 行，已有 VT_reputation ${completedRows} 行${restored ? `，从上次运行恢复 ${restored} 行` : ""}。`);
+      } catch (err) {
+        setStatus(`文件读取失败：${err.message || err}`, "error");
+      }
+    });
+
+    runBtn.addEventListener("click", runBatch);
+
+    pauseBtn.addEventListener("click", async () => {
+      if (!isRunning) return;
+      pauseRequested = true;
+      pauseBtn.disabled = true;
+      await writeCheckpoint(true);
+      setStatus("正在暂停... 当前已发出的请求完成后即可下载结果。");
+    });
+
+    downloadBtn.addEventListener("click", () => {
+      if (!rows.length || !sheetName || !workbook) {
+        setStatus("没有可下载的数据", "error");
+        return;
+      }
+      workbook.Sheets[sheetName] = XLSX.utils.aoa_to_sheet(rows);
+      const now = new Date();
+      const stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}_${String(now.getHours()).padStart(2, "0")}${String(now.getMinutes()).padStart(2, "0")}${String(now.getSeconds()).padStart(2, "0")}`;
+      XLSX.writeFile(workbook, `vt_result_${stamp}.xlsx`);
+      writeCheckpoint(true);
+      setStatus("结果文件已生成并开始下载。", "ok");
+    });
+
+    resetProgress(0);
+  </script>
+</body>
+</html>

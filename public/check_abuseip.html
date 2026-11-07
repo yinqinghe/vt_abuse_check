@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AbuseIPDB 单条查询</title>
+  <style>
+    :root {
+      --bg-a: #f5f7fb;
+      --bg-b: #e5f0ec;
+      --card: rgba(255, 255, 255, 0.9);
+      --text: #172033;
+      --muted: #64748b;
+      --primary: #166534;
+      --primary-strong: #14532d;
+      --border: rgba(22, 101, 52, 0.16);
+      --danger: #b91c1c;
+      --shadow: 0 24px 58px rgba(15, 23, 42, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 14% 12%, rgba(22, 101, 52, 0.14), transparent 28%),
+        radial-gradient(circle at 86% 78%, rgba(14, 116, 144, 0.12), transparent 30%),
+        linear-gradient(160deg, var(--bg-a), var(--bg-b));
+      padding: 24px;
+    }
+    .shell { max-width: 980px; margin: 0 auto; }
+    .hero, .card {
+      border-radius: 24px;
+      background: var(--card);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+    h1 { margin: 0 0 10px; font-size: clamp(28px, 4vw, 42px); }
+    .subtitle { margin: 0; color: var(--muted); line-height: 1.7; font-size: 15px; }
+    .links { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 12px; }
+    .links a { color: #0e7490; font-weight: 700; text-decoration: none; font-size: 14px; }
+    .panel { margin-top: 18px; display: grid; grid-template-columns: 1fr 150px 140px; gap: 12px; }
+    input, button {
+      width: 100%;
+      min-height: 52px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      font-size: 16px;
+    }
+    input { padding: 0 16px; background: rgba(255, 255, 255, 0.94); color: var(--text); }
+    button {
+      border: none;
+      background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 12px 26px rgba(22, 101, 52, 0.22);
+    }
+    button:disabled { opacity: 0.7; cursor: wait; }
+    .result { margin-top: 18px; display: grid; gap: 16px; }
+    .summary, .grid { display: grid; gap: 12px; margin-top: 16px; }
+    .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .metric {
+      border-radius: 14px;
+      padding: 13px 14px;
+      background: rgba(22, 101, 52, 0.06);
+      border: 1px solid rgba(22, 101, 52, 0.08);
+    }
+    .metric strong { display: block; color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+    .metric span { display: block; font-weight: 700; word-break: break-word; }
+    .score span { font-size: 28px; }
+    .error { color: var(--danger); font-weight: 700; }
+    @media (max-width: 820px) {
+      body { padding: 14px; }
+      .panel, .summary, .grid { grid-template-columns: 1fr; }
+      .hero, .card { padding: 18px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <h1>AbuseIPDB 单条查询</h1>
+      <p class="subtitle">输入 IP 地址，查询 AbuseIPDB 置信分、报告次数、归属和最近报告时间。</p>
+      <div class="links">
+        <a href="/check_vt">VT 单条查询</a>
+        <a href="/batch_check_vt">VT 批量查询</a>
+        <a href="/check_abuseip">AbuseIPDB 单条查询</a>
+        <a href="/batch_check_abuseip">AbuseIPDB 批量查询</a>
+        <a href="/check_combined">综合查询</a>
+      </div>
+
+      <div class="panel">
+        <input id="ipInput" type="text" placeholder="例如: 118.25.6.39">
+        <input id="maxAgeInput" type="number" min="1" max="365" value="90" title="maxAgeInDays">
+        <button id="searchBtn" type="button">查询</button>
+      </div>
+    </section>
+
+    <section id="result" class="result"></section>
+  </main>
+
+  <script>
+    window.va = window.va || function () {
+      (window.vaq = window.vaq || []).push(arguments);
+    };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+
+  <script>
+    const input = document.getElementById("ipInput");
+    const maxAgeInput = document.getElementById("maxAgeInput");
+    const searchBtn = document.getElementById("searchBtn");
+    const result = document.getElementById("result");
+
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (ch) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[ch]));
+    }
+
+    function renderMessage(message, isError = false) {
+      result.innerHTML = `<article class="card"><div class="${isError ? "error" : ""}">${escapeHtml(message)}</div></article>`;
+    }
+
+    function formatValue(value) {
+      if (value === null || value === undefined || value === "") return "N/A";
+      if (Array.isArray(value)) return value.length ? value.join(", ") : "N/A";
+      return String(value);
+    }
+
+    function renderResult(data) {
+      result.innerHTML = `
+        <article class="card">
+          <h2>查询结果</h2>
+          <div class="summary">
+            <div class="metric"><strong>IP</strong><span>${escapeHtml(data.ip_address)}</span></div>
+            <div class="metric score"><strong>Abuse Confidence Score</strong><span>${escapeHtml(formatValue(data.abuse_confidence_score))}</span></div>
+          </div>
+          <div class="grid">
+            <div class="metric"><strong>国家</strong><span>${escapeHtml(formatValue(data.country_name || data.country_code))}</span></div>
+            <div class="metric"><strong>使用类型</strong><span>${escapeHtml(formatValue(data.usage_type))}</span></div>
+            <div class="metric"><strong>ISP</strong><span>${escapeHtml(formatValue(data.isp))}</span></div>
+            <div class="metric"><strong>Domain</strong><span>${escapeHtml(formatValue(data.domain))}</span></div>
+            <div class="metric"><strong>报告次数</strong><span>${escapeHtml(formatValue(data.total_reports))}</span></div>
+            <div class="metric"><strong>不同用户数</strong><span>${escapeHtml(formatValue(data.num_distinct_users))}</span></div>
+            <div class="metric"><strong>最近报告时间</strong><span>${escapeHtml(formatValue(data.last_reported_at))}</span></div>
+            <div class="metric"><strong>Tor</strong><span>${data.is_tor ? "Y" : "N"}</span></div>
+            <div class="metric"><strong>白名单</strong><span>${data.is_whitelisted ? "Y" : "N"}</span></div>
+          </div>
+          <div class="summary">
+            <div class="metric"><strong>最近报告分类</strong><span>${escapeHtml(formatValue(data.latest_report_categories))}</span></div>
+            <div class="metric"><strong>最近报告说明</strong><span>${escapeHtml(formatValue(data.latest_report_comment))}</span></div>
+          </div>
+        </article>
+      `;
+    }
+
+    async function searchInfo() {
+      const ip = input.value.trim();
+      const maxAgeInDays = maxAgeInput.value || "90";
+
+      if (!ip) {
+        renderMessage("请输入要查询的 IP。", true);
+        return;
+      }
+
+      searchBtn.disabled = true;
+      renderMessage("正在查询 AbuseIPDB...");
+
+      const params = new URLSearchParams({ ip, maxAgeInDays });
+      try {
+        const response = await fetch(`/api/check_abuseip?${params.toString()}`);
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "查询失败");
+        renderResult(data);
+      } catch (error) {
+        renderMessage(error.message || "查询失败", true);
+      } finally {
+        searchBtn.disabled = false;
+      }
+    }
+
+    searchBtn.addEventListener("click", searchInfo);
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") searchInfo();
+    });
+  </script>
+</body>
+</html>

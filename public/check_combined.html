@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IOC 综合查询</title>
+  <style>
+    :root {
+      --bg-top: #f4efe6;
+      --bg-bottom: #dbe7f4;
+      --card: rgba(255, 255, 255, 0.88);
+      --text: #1f2937;
+      --muted: #6b7280;
+      --primary: #0f766e;
+      --primary-strong: #115e59;
+      --border: rgba(15, 118, 110, 0.16);
+      --danger: #b91c1c;
+      --success: #166534;
+      --shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+      --abuse-accent: rgba(22, 101, 52, 0.07);
+      --abuse-border: rgba(22, 101, 52, 0.10);
+      --vt-accent: rgba(15, 118, 110, 0.06);
+      --vt-border: rgba(15, 118, 110, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.16), transparent 28%),
+        radial-gradient(circle at bottom right, rgba(14, 116, 144, 0.14), transparent 30%),
+        linear-gradient(160deg, var(--bg-top), var(--bg-bottom));
+      padding: 24px;
+    }
+
+    .shell { max-width: 1080px; margin: 0 auto; }
+
+    .hero {
+      padding: 28px 28px 22px;
+      border: 1px solid rgba(255, 255, 255, 0.7);
+      border-radius: 28px;
+      background: var(--card);
+      backdrop-filter: blur(18px);
+      box-shadow: var(--shadow);
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: clamp(26px, 4vw, 40px);
+      line-height: 1.1;
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .links {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .links a {
+      font-size: 14px;
+      color: #0e7490;
+      text-decoration: none;
+      font-weight: 700;
+    }
+
+    .links a.active {
+      color: var(--primary);
+      border-bottom: 2px solid var(--primary);
+      padding-bottom: 1px;
+    }
+
+    /* ---- Input Panel ---- */
+    .panel {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: 1fr 160px 140px;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .age-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .age-label {
+      font-size: 12px;
+      color: var(--muted);
+      font-weight: 600;
+      padding-left: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .age-label .tip {
+      display: inline-block;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: var(--muted);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 15px;
+      cursor: help;
+      position: relative;
+    }
+
+    .age-label .tip:hover::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      bottom: 120%;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1f2937;
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      white-space: nowrap;
+      z-index: 10;
+      font-weight: 400;
+      pointer-events: none;
+    }
+
+    input, select, button {
+      width: 100%;
+      min-height: 52px;
+      border-radius: 16px;
+      border: 1px solid var(--border);
+      font-size: 16px;
+    }
+
+    input, select {
+      padding: 0 16px;
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--text);
+    }
+
+    input:focus, select:focus {
+      outline: 2px solid rgba(15, 118, 110, 0.18);
+      border-color: rgba(15, 118, 110, 0.45);
+    }
+
+    button {
+      border: none;
+      background: linear-gradient(135deg, var(--primary), var(--primary-strong));
+      color: #fff;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 14px 28px rgba(15, 118, 110, 0.22);
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+
+    button:hover { transform: translateY(-1px); }
+    button:disabled {
+      cursor: wait;
+      opacity: 0.72;
+      transform: none;
+    }
+
+    /* ---- Results layout ---- */
+    .result { margin-top: 22px; display: grid; gap: 18px; }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+    }
+
+    .card {
+      border-radius: 24px;
+      background: var(--card);
+      border: 1px solid rgba(255, 255, 255, 0.72);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      overflow: hidden;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+
+    .card-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .badge-vt {
+      background: rgba(15, 118, 110, 0.12);
+      color: var(--primary);
+    }
+
+    .badge-abuse {
+      background: rgba(22, 101, 52, 0.12);
+      color: var(--success);
+    }
+
+    .card h2 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    /* ---- Metric grids ---- */
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .metric {
+      border-radius: 14px;
+      padding: 12px 14px;
+    }
+
+    .metric-vt {
+      background: var(--vt-accent);
+      border: 1px solid var(--vt-border);
+    }
+
+    .metric-abuse {
+      background: var(--abuse-accent);
+      border: 1px solid var(--abuse-border);
+    }
+
+    .metric strong {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .metric span {
+      font-size: 15px;
+      font-weight: 700;
+      word-break: break-word;
+      display: block;
+    }
+
+    .score-big span {
+      font-size: 26px;
+    }
+
+    .error {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .info-note {
+      font-size: 13px;
+      color: var(--muted);
+      margin-top: 10px;
+      font-style: italic;
+    }
+
+    /* Status indicator */
+    .status-loading {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(15, 118, 110, 0.2);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 860px) {
+      .results-grid { grid-template-columns: 1fr; }
+      .panel { grid-template-columns: 1fr 120px 110px; }
+    }
+
+    @media (max-width: 600px) {
+      .panel { grid-template-columns: 1fr; }
+      .grid-3 { grid-template-columns: repeat(2, 1fr); }
+      .grid-2 { grid-template-columns: 1fr; }
+      body { padding: 14px; }
+      .hero, .card { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <h1>IOC 综合查询</h1>
+      <p class="subtitle">输入 IP、Domain、URL 或文件 Hash；若为 IP，将同时查询 VirusTotal 和 AbuseIPDB。</p>
+      <div class="links">
+        <a href="/check_vt">VT 单条查询</a>
+        <a href="/batch_check_vt">VT 批量查询</a>
+        <a href="/check_abuseip">AbuseIPDB 单条查询</a>
+        <a href="/batch_check_abuseip">AbuseIPDB 批量查询</a>
+        <a href="/check_combined" class="active">综合查询</a>
+      </div>
+
+      <div class="panel">
+        <div class="input-group">
+          <input id="iocInput" type="text" placeholder="例如: 8.8.8.8 / example.com / d41d8cd98f00b204e9800998ecf8427e">
+        </div>
+        <div>
+          <select id="iocType">
+            <option value="">自动识别</option>
+            <option value="IP">IP</option>
+            <option value="Domain">Domain</option>
+            <option value="URL">URL</option>
+            <option value="Hash">Hash</option>
+          </select>
+        </div>
+        <button id="searchBtn" type="button">查询</button>
+      </div>
+
+      <!-- AbuseIPDB maxAgeInDays 参数说明行 -->
+      <div style="margin-top:12px; display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted);">
+        <span>AbuseIPDB 参数：</span>
+        <label for="maxAgeInput" style="font-weight:700; color:var(--text);">maxAgeInDays</label>
+        <input id="maxAgeInput" type="number" min="1" max="365" value="90"
+               style="width:80px; min-height:34px; border-radius:10px; font-size:14px; padding:0 10px;">
+        <span style="color:var(--muted);">— 查询最近 N 天内的举报记录（1–365，默认 90）</span>
+      </div>
+    </section>
+
+    <section id="result" class="result"></section>
+  </main>
+
+  <script>
+    window.va = window.va || function () {
+      (window.vaq = window.vaq || []).push(arguments);
+    };
+  </script>
+  <script defer src="/_vercel/insights/script.js"></script>
+
+  <script>
+    const iocInput   = document.getElementById('iocInput');
+    const typeSelect = document.getElementById('iocType');
+    const maxAgeInput = document.getElementById('maxAgeInput');
+    const searchBtn  = document.getElementById('searchBtn');
+    const resultEl   = document.getElementById('result');
+
+    /* ── helpers ── */
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[c]));
+    }
+
+    function fmt(v) {
+      if (v === null || v === undefined || v === '') return 'N/A';
+      if (Array.isArray(v)) return v.length ? v.join(', ') : 'N/A';
+      return String(v);
+    }
+
+    function fmtTs(unix) {
+      if (!unix) return 'N/A';
+      return new Date(unix * 1000).toLocaleString('zh-CN', { hour12: false });
+    }
+
+    function detectIsIP(raw) {
+      const v = raw.replace(/[\[\]]/g, '');
+      const parts = v.split('.');
+      if (parts.length !== 4) return false;
+      return parts.every(p => { const n = Number(p); return Number.isInteger(n) && n >= 0 && n <= 255; });
+    }
+
+    function spinnerCard(msg) {
+      return `<article class="card">
+        <div class="status-loading">
+          <div class="spinner"></div>
+          <span>${esc(msg)}</span>
+        </div>
+      </article>`;
+    }
+
+    /* ── render VT result ── */
+    function renderVT(data) {
+      return `
+      <article class="card">
+        <div class="card-header">
+          <h2>VirusTotal</h2>
+          <span class="card-badge badge-vt">VT</span>
+        </div>
+        <div class="grid-2">
+          <div class="metric metric-vt"><strong>IOC</strong><span>${esc(data.ioc || 'N/A')}</span></div>
+          <div class="metric metric-vt"><strong>类型</strong><span>${esc(data.ioc_type || 'N/A')}</span></div>
+          <div class="metric metric-vt"><strong>恶意命中数</strong><span>${esc(fmt(data.malicious ?? 0))}</span></div>
+          <div class="metric metric-vt"><strong>声誉分</strong><span>${esc(fmt(data.reputation))}</span></div>
+        </div>
+        <div class="grid-3" style="margin-top:10px;">
+          <div class="metric metric-vt"><strong>Symantec</strong><span>${esc(data.symantec || 'N')}</span></div>
+          <div class="metric metric-vt"><strong>McAfeeD</strong><span>${esc(data.mcafeed || 'N')}</span></div>
+          <div class="metric metric-vt"><strong>最近分析时间</strong><span>${esc(fmtTs(data.last_analysis_date))}</span></div>
+        </div>
+        <div class="grid-2" style="margin-top:10px;">
+          <div class="metric metric-vt"><strong>VT_Sign</strong><span>${esc(data.vt_sign || 'N')}</span></div>
+          <div class="metric metric-vt"><strong>Autonomous System</strong><span>${esc(data.autonomous_system_label || 'N/A')}</span></div>
+        </div>
+      </article>`;
+    }
+
+    function renderVTError(msg) {
+      return `<article class="card">
+        <div class="card-header"><h2>VirusTotal</h2><span class="card-badge badge-vt">VT</span></div>
+        <p class="error" style="margin-top:14px;">${esc(msg)}</p>
+      </article>`;
+    }
+
+    /* ── render AbuseIPDB result ── */
+    function renderAbuse(data) {
+      return `
+      <article class="card">
+        <div class="card-header">
+          <h2>AbuseIPDB</h2>
+          <span class="card-badge badge-abuse">Abuse</span>
+        </div>
+        <div class="grid-2">
+          <div class="metric metric-abuse"><strong>IP</strong><span>${esc(fmt(data.ip_address))}</span></div>
+          <div class="metric metric-abuse score-big"><strong>Abuse Confidence Score</strong><span>${esc(fmt(data.abuse_confidence_score))}</span></div>
+        </div>
+        <div class="grid-3" style="margin-top:10px;">
+          <div class="metric metric-abuse"><strong>国家</strong><span>${esc(fmt(data.country_name || data.country_code))}</span></div>
+          <div class="metric metric-abuse"><strong>使用类型</strong><span>${esc(fmt(data.usage_type))}</span></div>
+          <div class="metric metric-abuse"><strong>ISP</strong><span>${esc(fmt(data.isp))}</span></div>
+          <div class="metric metric-abuse"><strong>Domain</strong><span>${esc(fmt(data.domain))}</span></div>
+          <div class="metric metric-abuse"><strong>报告次数</strong><span>${esc(fmt(data.total_reports))}</span></div>
+          <div class="metric metric-abuse"><strong>不同用户数</strong><span>${esc(fmt(data.num_distinct_users))}</span></div>
+          <div class="metric metric-abuse"><strong>最近报告时间</strong><span>${esc(fmt(data.last_reported_at))}</span></div>
+          <div class="metric metric-abuse"><strong>Tor</strong><span>${data.is_tor ? 'Y' : 'N'}</span></div>
+          <div class="metric metric-abuse"><strong>白名单</strong><span>${data.is_whitelisted ? 'Y' : 'N'}</span></div>
+        </div>
+        <div class="grid-2" style="margin-top:10px;">
+          <div class="metric metric-abuse"><strong>最近报告分类</strong><span>${esc(fmt(data.latest_report_categories))}</span></div>
+          <div class="metric metric-abuse"><strong>最近报告说明</strong><span>${esc(fmt(data.latest_report_comment))}</span></div>
+        </div>
+      </article>`;
+    }
+
+    function renderAbuseError(msg) {
+      return `<article class="card">
+        <div class="card-header"><h2>AbuseIPDB</h2><span class="card-badge badge-abuse">Abuse</span></div>
+        <p class="error" style="margin-top:14px;">${esc(msg)}</p>
+      </article>`;
+    }
+
+    function renderAbuseSkipped() {
+      return `<article class="card">
+        <div class="card-header"><h2>AbuseIPDB</h2><span class="card-badge badge-abuse">Abuse</span></div>
+        <p class="info-note" style="margin-top:14px;">仅 IP 类型会查询 AbuseIPDB，当前 IOC 类型不适用。</p>
+      </article>`;
+    }
+
+    /* ── main query ── */
+    async function searchInfo() {
+      const ioc  = iocInput.value.trim();
+      const type = typeSelect.value;
+      const maxAge = maxAgeInput.value || '90';
+
+      if (!ioc) {
+        resultEl.innerHTML = `<article class="card"><p class="error">请输入要查询的 IOC。</p></article>`;
+        return;
+      }
+
+      searchBtn.disabled = true;
+
+      // Determine if likely IP to show correct loading state immediately
+      const likelyIP = type === 'IP' || (!type && detectIsIP(ioc));
+
+      if (likelyIP) {
+        resultEl.innerHTML = `<div class="results-grid">
+          ${spinnerCard('正在查询 VirusTotal...')}
+          ${spinnerCard('正在查询 AbuseIPDB...')}
+        </div>`;
+      } else {
+        resultEl.innerHTML = spinnerCard('正在查询 VirusTotal...');
+      }
+
+      const vtParams = new URLSearchParams({ ioc });
+      if (type) vtParams.set('type', type);
+
+      try {
+        if (likelyIP) {
+          // Fire both requests in parallel
+          const abuseParams = new URLSearchParams({ ip: ioc, maxAgeInDays: maxAge });
+
+          const [vtRes, abuseRes] = await Promise.allSettled([
+            fetch(`/api/check_vt?${vtParams}`).then(async r => {
+              const d = await r.json();
+              if (!r.ok) throw new Error(d.error || '查询失败');
+              return d;
+            }),
+            fetch(`/api/check_abuseip?${abuseParams}`).then(async r => {
+              const d = await r.json();
+              if (!r.ok) throw new Error(d.error || '查询失败');
+              return d;
+            })
+          ]);
+
+          const vtHtml   = vtRes.status === 'fulfilled'   ? renderVT(vtRes.value)       : renderVTError(vtRes.reason?.message || '查询失败');
+          const abuseHtml = abuseRes.status === 'fulfilled' ? renderAbuse(abuseRes.value) : renderAbuseError(abuseRes.reason?.message || '查询失败');
+
+          resultEl.innerHTML = `<div class="results-grid">${vtHtml}${abuseHtml}</div>`;
+        } else {
+          // Non-IP: VT only
+          const r = await fetch(`/api/check_vt?${vtParams}`);
+          const data = await r.json();
+          if (!r.ok) throw new Error(data.error || '查询失败');
+          resultEl.innerHTML = renderVT(data);
+        }
+      } catch (err) {
+        resultEl.innerHTML = `<article class="card"><p class="error">${esc(err.message || '查询失败')}</p></article>`;
+      } finally {
+        searchBtn.disabled = false;
+      }
+    }
+
+    searchBtn.addEventListener('click', searchInfo);
+    iocInput.addEventListener('keydown', e => { if (e.key === 'Enter') searchInfo(); });
+  </script>
+</body>
+</html>
